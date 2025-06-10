@@ -19,7 +19,7 @@ class MainWindow(QMainWindow):
     """
     The main application window.
     """
-    def __init__(self):
+    def __init__(self, initial_filepath: str = None):
         super().__init__()
         self.setWindowTitle("Fast File Viewer")
         self.setGeometry(100, 100, 1000, 700) # x, y, width, height
@@ -50,6 +50,9 @@ class MainWindow(QMainWindow):
         self._update_recent_files_menu() # Populate recent files menu at startup
         self.setAcceptDrops(True) # Enable drag and drop for the main window
         self.apply_editor_font_settings() # Apply initial font settings
+
+        if initial_filepath:
+            self._open_initial_file(initial_filepath)
 
     def _create_menus(self):
         """Creates the main menu bar and menus."""
@@ -100,12 +103,7 @@ class MainWindow(QMainWindow):
         """Opens a dialog to select a file and loads it."""
         filepath, _ = QFileDialog.getOpenFileName(self, "Open File", "", "All Files (*);;Text Files (*.txt);;Log Files (*.log)")
         if filepath:
-            self.editor_view.clear() # Clear previous content before loading new file
-            self.current_filepath = filepath
-            self.status_bar.showMessage(f"Opening {filepath}...")
-            self.file_handler.load_file(filepath)
-            self.settings_manager.add_recent_file(filepath)
-            self._update_recent_files_menu()
+            self._load_file_action(filepath)
 
     def open_preferences_dialog(self):
         """Opens the preferences dialog."""
@@ -128,7 +126,6 @@ class MainWindow(QMainWindow):
                 if url.isLocalFile():
                     event.acceptProposedAction()
                     return
-        event.ignore()
 
     def dropEvent(self, event: QDropEvent):
         """Handles drop events to open the dropped file(s)."""
@@ -141,11 +138,7 @@ class MainWindow(QMainWindow):
                     break # Open the first valid local file
             
             if filepath_to_open:
-                self.editor_view.clear()
-                self.status_bar.showMessage(f"Opening {filepath_to_open}...")
-                self.file_handler.load_file(filepath_to_open)
-                self.settings_manager.add_recent_file(filepath_to_open)
-                self._update_recent_files_menu()
+                self._load_file_action(filepath_to_open)
             event.acceptProposedAction()
         else:
             event.ignore()
@@ -169,12 +162,7 @@ class MainWindow(QMainWindow):
 
     def _open_recent_file_action(self, filepath: str):
         """Handles opening a file selected from the 'Recent Files' menu."""
-        self.editor_view.clear()
-        self.current_filepath = filepath
-        self.status_bar.showMessage(f"Opening {filepath}...")
-        self.file_handler.load_file(filepath)
-        self.settings_manager.add_recent_file(filepath) # Move to top of recent list
-        self._update_recent_files_menu()
+        self._load_file_action(filepath)
 
     def _clear_recent_files_action(self):
         """Clears all recent files from settings and updates the menu."""
@@ -189,3 +177,17 @@ class MainWindow(QMainWindow):
             # self.current_filepath = None # Optionally reset if needed
         else:
             self.status_bar.showMessage("Ready", 3000)
+
+    def _load_file_action(self, filepath: str):
+        """Helper method to open and load a file."""
+        self.editor_view.clear()
+        self.current_filepath = filepath
+        self.status_bar.showMessage(f"Opening {filepath}...")
+        self.file_handler.load_file(filepath)
+        self.settings_manager.add_recent_file(filepath)
+        self._update_recent_files_menu()
+
+    def _open_initial_file(self, filepath: str):
+        """Loads the initial file passed via command line argument."""
+        # This method ensures the file is loaded after the window is fully initialized.
+        self._load_file_action(filepath)
