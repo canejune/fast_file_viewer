@@ -2,13 +2,13 @@
 # Main application window, layout, menus, status bar.
 
 import functools
-from PySide6.QtWidgets import (QMainWindow, QVBoxLayout, QWidget, QFileDialog, QDialog, QMenu,
-                               QMenuBar, QStatusBar)
+from PySide6.QtWidgets import (QMainWindow, QHBoxLayout, QWidget, QFileDialog, QDialog, QMenu,
+                               QMenuBar, QStatusBar, QSplitter)
 from PySide6.QtGui import QAction, QKeySequence, QDragEnterEvent, QDropEvent
-
+from PySide6.QtCore import Qt
 # Placeholder for other UI components that will be integrated
 from .editor_view import EditorView
-# from .minimap_view import MinimapView
+from .minimap_view import MinimapView
 # from .regex_dialog import RegexDialog
 from .preferences_dialog import PreferencesDialog
 
@@ -32,19 +32,28 @@ class MainWindow(QMainWindow):
         # Central Widget and Layout
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
-        layout = QVBoxLayout(central_widget) # Main layout, can be more complex (e.g., QHBoxLayout)
+        main_layout = QHBoxLayout(central_widget) # Use QHBoxLayout for Editor and Minimap
+        main_layout.setContentsMargins(0,0,0,0)
+        main_layout.setSpacing(0)
 
-        # Editor View (placeholder)
+        # Splitter to allow resizing between editor and minimap
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+
         self.editor_view = EditorView(self)
-        layout.addWidget(self.editor_view)
+        splitter.addWidget(self.editor_view)
 
-        # Minimap View (placeholder - to be added to layout, perhaps with a splitter)
-        # self.minimap_view = MinimapView(self)
+        self.minimap_view = MinimapView(self)
+        splitter.addWidget(self.minimap_view)
+        
+        # Set initial sizes for splitter (optional)
+        splitter.setSizes([800, 200]) # Adjust as needed
+        main_layout.addWidget(splitter)
 
         self._create_menus()
         self._create_status_bar()
 
         # Connect signals from core components to UI updates
+        self.file_handler.file_content_loaded.connect(self.minimap_view.set_document_content)
         self.file_handler.file_content_loaded.connect(self.editor_view.set_text_content)
         self.file_handler.loading_finished.connect(self._on_file_loading_finished)
         self._update_recent_files_menu() # Populate recent files menu at startup
@@ -52,7 +61,14 @@ class MainWindow(QMainWindow):
         self.apply_editor_font_settings() # Apply initial font settings
 
         if initial_filepath:
+            # Ensure minimap also gets content if loaded from command line
+            # This might need a slight refactor if _open_initial_file doesn't trigger
+            # file_content_loaded in a way that minimap can receive it before first paint.
+            # For now, assuming file_content_loaded will be emitted.
             self._open_initial_file(initial_filepath)
+        
+        # Link editor view and minimap view
+        self.editor_view.link_minimap(self.minimap_view)
 
     def _create_menus(self):
         """Creates the main menu bar and menus."""
