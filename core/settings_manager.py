@@ -1,6 +1,7 @@
 # FastFileViewer :: core/settings_manager.py
 # Manages application settings and user preferences.
-
+from PySide6.QtGui import QColor
+from PySide6.QtCore import Qt # Added import for Qt
 from PySide6.QtCore import QObject, QSettings
 from utils.constants import MAX_RECENT_FILES
 
@@ -63,9 +64,40 @@ class SettingsManager(QObject):
         """Sets the editor font size."""
         self.set_setting("editor/fontSize", font_size)
 
-    # Add more methods for font, window size, regex patterns, bookmarks etc.
-    # def save_bookmarks(self, bookmarks_set):
-    #     self.set_setting("bookmarks", list(bookmarks_set))
+    def save_regex_patterns(self, patterns_list: list):
+        """
+        Saves regex patterns to settings.
+        Each pattern in patterns_list is a dict:
+        {"id": str, "pattern_str": str, "fg_color": QColor, "bg_color": QColor, "is_active": bool}
+        QColor is saved as its name (e.g., "#RRGGBB").
+        """
+        serializable_patterns = []
+        for p in patterns_list:
+            serializable_patterns.append({
+                "id": p["id"],
+                "pattern_str": p["pattern_str"],
+                "fg_color_name": p.get("fg_color", QColor(Qt.GlobalColor.black)).name(), # Default to black if missing
+                "bg_color_name": p.get("bg_color", QColor(Qt.GlobalColor.yellow)).name(), # Default to yellow if missing
+                "is_active": p["is_active"]
+            })
+        self.set_setting("regexPatterns", serializable_patterns)
+
+    def load_regex_patterns(self) -> list:
+        """
+        Loads regex patterns from settings.
+        Returns a list of pattern dicts, converting color names back to QColor.
+        """
+        loaded_patterns_data = self.get_setting("regexPatterns", [])
+        patterns = []
+        for p_data in loaded_patterns_data:
+            patterns.append({
+                "id": p_data["id"],
+                "pattern_str": p_data["pattern_str"],
+                "fg_color": QColor(p_data.get("fg_color_name", Qt.GlobalColor.black.name)),
+                "bg_color": QColor(p_data.get("bg_color_name", Qt.GlobalColor.yellow.name)),
+                "is_active": p_data["is_active"]
+            })
+        return patterns
 
     # def load_bookmarks(self):
     #     return set(self.get_setting("bookmarks", []))

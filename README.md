@@ -1,66 +1,81 @@
 # Fast File Viewer
 
-## 개요
-Python으로 개발된 고성능 파일 뷰어 애플리케이션으로, 대용량 파일을 효율적으로 열고 분석하도록 설계되었습니다. 
-이 뷰어는 즉각적인 파일 로딩, 강력한 정규식 기반 검색 및 필터링, 사용자 친화적인 인터페이스를 제공하여 개발자, 데이터 분석가, 시스템 관리자의 생산성 향상을 목표로 합니다. 
-개발 전 과정은 SOLID 원칙을 준수하며, 모든 코드 주석은 영어로 작성됩니다.
+## Overview
+A high-performance file viewer application developed in Python, designed to efficiently open and analyze large files.
+This viewer aims to enhance productivity for developers, data analysts, and system administrators by providing instant file loading, powerful regex-based search and highlighting, and a user-friendly interface.
+The entire development process adheres to SOLID principles, and all code comments are written in English.
 
-## 핵심 기능
+## Core Features
 
-### 1. 비동기 파일 로딩
-- **빠른 초기 표시**: 파일의 첫 부분을 즉시 로드하여 사용자에게 보여줍니다.
-- **백그라운드 로딩**: 나머지 파일은 백그라운드 스레드에서 점진적으로 로드하여 UI 멈춤 현상을 방지합니다.
-- **동적 UI 업데이트**: 파일이 로드됨에 따라 스크롤바와 문서 개요(Minimap)가 실시간으로 업데이트됩니다.
+### 1. Asynchronous File Loading
+- **Fast Initial Display**: Instantly loads and displays the beginning of the file to the user.
+- **Background Loading**: The rest of the file is progressively loaded in a background thread, preventing UI freezes.
+- **Dynamic UI Updates**: Scrollbars and the document overview (Minimap) are updated in real-time as the file loads.
 
-### 2. 사용자 인터페이스 (UI)
-- **라인 넘버**: 모든 라인 왼쪽에 고유한 라인 번호를 표시하며, 파일 길이에 따라 거터 크기가 조절됩니다.
-- **폰트 조절**: 사용자가 "Edit" -> "Preferences" 메뉴를 통해 에디터의 폰트 종류와 크기를 자유롭게 변경하고 설정을 저장할 수 있습니다.
-- **최근 파일 목록**: "File" -> "Recent Files" 메뉴를 통해 최근에 열어본 파일 목록을 제공하며, 이 목록은 애플리케이션 재시작 시에도 유지됩니다. "Clear Recent Files" 기능으로 목록을 지울 수 있습니다.
-- **텍스트 선택 및 복사**: 문서 편집은 비활성화하되, 사용자가 텍스트를 마우스로 선택하고 클립보드로 복사할 수 있습니다.
-- **드래그 앤 드롭**: 파일을 애플리케이션 창으로 드래그 앤 드롭하여 열 수 있습니다.
-- **상태 표시줄**: 파일 로딩 상태 및 기타 정보를 상태 표시줄에 적절히 표시합니다.
-- **줄 바꿈 처리**: 다양한 운영체제(Unix, DOS/Windows)의 줄 바꿈 문자를 일관되게 처리하여 빈 줄 문제를 방지합니다.
+### 2. User Interface (UI)
+- **Line Numbers**: Displays unique line numbers to the left of each line, with gutter size adjusting based on file length.
+- **Font Adjustment**: Users can freely change the editor's font family and size via the "Edit" -> "Preferences" menu, and settings are saved.
+- **Recent Files List**: Provides a list of recently opened files through the "File" -> "Recent Files" menu, which persists across application restarts. The list can be cleared using the "Clear Recent Files" feature.
+- **Text Selection and Copy**: Document editing is disabled, but users can select text with the mouse and copy it to the clipboard.
+- **Drag and Drop**: Files can be opened by dragging and dropping them onto the application window.
+- **Status Bar**: Appropriately displays file loading status and other information in the status bar.
+- **Line Ending Handling**: Consistently handles line break characters from various operating systems (Unix, DOS/Windows) to prevent blank line issues.
 
-### 3. 북마크 기능
-- **북마크 추가/제거**: 사용자가 특정 라인을 북마크로 지정하거나 해제할 수 있습니다.
-- **북마크 표시**: 북마크된 라인은 라인 번호 옆에 시각적 표시(예: 📖 아이콘)를 추가합니다.
+### 3. Regex Search and Highlighting
+- **Multiple Regex Support**: Apply multiple regular expression patterns simultaneously.
+- **Custom Colors**: Users can specify custom highlight colors (foreground and background) for each regex pattern.
+- **Pattern Management Window**: Manage a list of regular expressions in a separate window, allowing activation/deactivation of each pattern.
+- **Minimap Integration**: Lines matching active regex patterns are also indicated with their respective background colors in the minimap.
+- **Pattern Precedence**: If multiple active patterns match the same line, the background color of the pattern listed higher in the management dialog will be applied.
+- **Persistent Patterns**: Defined regex patterns and their styles are saved and will be available on subsequent application launches.
 
-### 4. 정규식 검색 및 하이라이팅
-- **다중 정규식 지원**: 여러 개의 정규식 패턴을 동시에 적용할 수 있습니다.
-- **사용자 정의 색상**: 각 정규식 패턴에 대해 사용자가 하이라이트 색상을 직접 지정할 수 있습니다.
-- **패턴 관리 창**: 별도의 창에서 정규식 목록을 관리하며, 각 패턴을 활성화/비활성화할 수 있습니다.
-- **검색 결과만 보기**: 정규식과 일치하는 라인들만 모아서 보여주는 별도의 결과 창을 제공합니다.
+### 4. Document Overview (Minimap)
+- **Full Document Visualization**: Displays a thumbnail (Minimap) of the entire document on the right side of the screen.
+- **Navigation**: Instantly navigate to specific parts of the document by clicking or dragging on the Minimap.
+- **Accurate Visible Area Indicator**: The currently visible area in the editor is accurately indicated on the Minimap, even for short files.
+- **Information Visualization**: Regex search results (line backgrounds) are displayed in the overview with their specified colors.
 
-### 5. 문서 개요 (Minimap)
-- **전체 문서 시각화**: 화면 오른쪽에 전체 문서의 축소판(Minimap)을 표시합니다.
-- **탐색 기능**: Minimap을 클릭하거나 드래그하여 문서의 특정 위치로 즉시 이동할 수 있으며, 현재 에디터에 보이는 영역이 Minimap에 표시됩니다.
-- **정보 시각화**: 북마크와 정규식 검색 결과가 지정된 색상으로 개요에 함께 표시됩니다.
+### 5. Persistent Settings
+- Remembers recent files.
+- Saves editor font preferences.
+- Saves custom regex patterns and their styles.
 
-### 6. 고급 기능
-- **라인 필터링**: 사용자가 지정한 정규식과 일치하는 라인을 메인 뷰에서 숨깁니다 (원본 라인 번호 유지).
-- **타임스탬프 파싱 (선택 사항)**: 라인 내 특정 포맷의 타임스탬프를 자동 파싱하고, 사용자가 파싱 규칙과 출력 형식을 정의할 수 있습니다.
+## Technical Architecture
+- **Language and Framework**: Python 3, PySide6 (for UI and multi-threading support)
+- **Design Principles**: SOLID principles (Single Responsibility, Open-Closed, Liskov Substitution, Interface Segregation, Dependency Inversion)
 
-## 기술 아키텍처
-- **언어 및 프레임워크**: Python 3, PySide6 (UI 및 멀티스레딩 지원)
-- **디자인 원칙**: SOLID 원칙 (단일 책임, 개방-폐쇄, 리스코프 치환, 인터페이스 분리, 의존관계 역전)
+## Module Structure
+The application is organized into the following main packages:
+- `core/`: Core business logic and data processing modules (e.g., `file_handler.py`, `regex_engine.py`, `settings_manager.py`)
+- `ui/`: All PySide6-based user interface components (e.g., `main_window.py`, `editor_view.py`, `minimap_view.py`)
+- `utils/`: Utility functions, constants, and helper classes
 
-## 모듈 구조
-애플리케이션은 다음과 같은 주요 패키지로 구성됩니다:
-- `core/`: 핵심 비즈니스 로직 및 데이터 처리 모듈 (예: `file_handler.py`, `regex_engine.py`, `bookmark_manager.py`)
-- `ui/`: 모든 PySide6 기반 사용자 인터페이스 구성 요소 (예: `main_window.py`, `editor_view.py`, `minimap_view.py`)
-- `utils/`: 유틸리티 함수, 상수 및 헬퍼 클래스
+## Development Guidelines
+- **Code Style**: Adherence to PEP 8 coding conventions.
+- **Comments**: All code comments and commit messages are written in English.
+- **Version Control**: Git.
 
-## 개발 가이드라인
-- **코드 스타일**: PEP 8 코딩 컨벤션 준수.
-- **주석**: 모든 코드 주석과 커밋 메시지는 영어로 작성.
-- **버전 관리**: Git 사용.
-
-## 시작하기 / 실행 방법
-(이 섹션은 개발 진행에 따라 업데이트될 예정입니다.)
-
-현재 애플리케이션의 `main.py`는 기본적인 실행을 위한 플레이스홀더 상태입니다.
-애플리케이션을 실행하려면 프로젝트의 최상위 디렉토리에서 다음 명령을 사용하세요.
-파일 경로를 인자로 전달하여 특정 파일을 바로 열 수 있습니다.
+## Getting Started / How to Run
+The application can be run from the project's root directory using the following command.
+You can also pass a file path as an argument to open a specific file immediately.
 ```bash
-python fast_file_viewer/main.py
+python main.py [optional_filepath]
 ```
+Example:
+```bash
+python main.py
+python main.py /path/to/your/file.log
+```
+
+## TODO / Future Enhancements
+- **Bookmark Feature**:
+    - Add/remove bookmarks for specific lines.
+    - Visual indication for bookmarked lines (e.g., 📖 icon) in the gutter and minimap.
+- **Show Only Matching Lines**: Provide a separate results window to display only lines matching regex.
+- **Line Filtering**: Hide lines in the main view that match a user-specified regex (while maintaining original line numbers).
+- **Timestamp Parsing (Optional)**: Automatically parse timestamps in a specific format within lines, allowing users to define parsing rules and output formats.
+- More advanced minimap rendering (e.g., actual tiny text instead of line indicators).
+- Horizontal scrolling synchronization between editor and minimap (if line wrapping is off).
+- Performance improvements for extremely large files (virtual scrolling for minimap if needed).
+- More robust error handling and user feedback.
+- Configurable colors for UI elements (theme support).

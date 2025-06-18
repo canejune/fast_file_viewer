@@ -19,22 +19,22 @@ class MinimapView(QWidget):
     # Signal to indicate user wants to scroll to a certain percentage of the document
     scroll_request = Signal(float) # float is percentage from 0.0 to 1.0
 
-    def __init__(self, parent=None):
+    def __init__(self, regex_engine, parent=None):
         super().__init__(parent)
         self.setMinimumWidth(80) # Adjust as needed
         self.setMaximumWidth(200)
         self._document_lines = [] # Stores MinimapLine objects
         self._visible_rect_fraction = QRectF(0, 0, 1, 0.1) # x, y, w, h as fractions of minimap
         self._line_height = 2 # Height of each line in the minimap in pixels
-        self._text_color = QColor(Qt.GlobalColor.gray)
-        self._background_color = QColor(Qt.GlobalColor.lightGray).lighter(110)
+        self._default_line_indicator_color = QColor(Qt.GlobalColor.gray) # Color for non-empty lines without regex match
+        self._minimap_background_color = QColor(Qt.GlobalColor.lightGray).lighter(110)
         self._visible_area_color = QColor(Qt.GlobalColor.darkGray).lighter(50)
         self._visible_area_color.setAlpha(100) # Semi-transparent
 
         self.editor_scroll_bar = None # To get scroll range and position
 
         # self.bookmark_manager = None
-        # self.regex_engine = None
+        self.regex_engine = regex_engine
         self.setFont(QFont("Monospace", 1)) # Tiny font for minimap representation
 
     def set_document_content(self, lines: list):
@@ -55,19 +55,22 @@ class MinimapView(QWidget):
         scroll_min = editor_scroll_bar.minimum()
         scroll_max = editor_scroll_bar.maximum()
         page_step = editor_scroll_bar.pageStep()
-
-        # total_range includes the page_step itself, representing the full scrollable content height
-        total_range = scroll_max - scroll_min + page_step
-
-        if total_range <= 0 or page_step <= 0: # Avoid division by zero or invalid states
+        
+        # If scroll_max is 0, it means content fits and no scrolling is needed.
+        # In this case, the visible area is the entire document.
+        if scroll_max == 0:
             self._visible_rect_fraction.setY(0)
             self._visible_rect_fraction.setHeight(1.0)
         else:
+            # total_range includes the page_step itself, representing the full scrollable content height
+            total_range = scroll_max - scroll_min + page_step
+            if total_range <= 0 or page_step <= 0: # Should not happen if scroll_max > 0
+                self._visible_rect_fraction.setY(0)
+                self._visible_rect_fraction.setHeight(1.0)
+                return # Avoid further calculation if state is invalid
             # Calculate the start of the visible area (0.0 to 1.0)
-            # Ensure scroll_value is within bounds for calculation
             current_pos_in_range = max(0, scroll_value - scroll_min)
             visible_start_ratio = current_pos_in_range / total_range
-            # Calculate the height of the visible area (0.0 to 1.0)
             visible_height_ratio = page_step / total_range
             self._visible_rect_fraction.setY(min(visible_start_ratio, 1.0 - visible_height_ratio)) # Ensure it doesn't go out of bounds
             self._visible_rect_fraction.setHeight(visible_height_ratio)
@@ -79,34 +82,42 @@ class MinimapView(QWidget):
         Renders the minimap.
         This will involve drawing scaled lines, bookmarks, and highlights.
         """
-        painter = QPainter(self)
-        painter.fillRect(self.rect(), self._background_color)
+        if not self.isVisible():
+            return
 
-        if not self._document_lines:
+        painter = QPainter(self)
+        painter.fillRect(self.rect(), self._minimap_background_color)
+
+        if not self._document_lines or not self.regex_engine:
             painter.end()
             return
 
-        # Simple rendering: draw a small rectangle for each line
-        # More advanced: draw tiny text or representations of text structure
-        painter.setPen(self._text_color)
-        
+        active_patterns = self.regex_engine.get_active_patterns()
         total_lines = len(self._document_lines)
-        # Calculate how many lines can fit vs how many there are
-        # This determines the effective line height for drawing if scaling is needed
-        # For now, use fixed self._line_height and let it scroll if too many lines
 
         y_offset = 0
         for i, m_line in enumerate(self._document_lines):
-            # A very basic representation of a line
-            # For a VSCode like minimap, you'd analyze m_line.text
-            # and draw a more representative glyph or scaled text.
-            # Here, we just draw a small horizontal line.
-            if m_line.text.strip(): # Draw something if line is not empty
-                 painter.drawLine(2, y_offset + 1, self.width() - 4, y_offset + 1)
+            line_text = m_line.text
+            line_bg_color_to_draw = None
+
+            if active_patterns:
+                for compiled_regex, fg_c, bg_c in active_patterns:
+                    if compiled_regex.search(line_text):
+                        line_bg_color_to_draw = bg_c
+                        break # First active pattern match determines background
+
+            if line_bg_color_to_draw:
+                painter.fillRect(QRectF(0, y_offset, self.width(), self._line_height), line_bg_color_to_draw)
+            elif line_text.strip(): # If no regex match, draw default indicator for non-empty lines
+                painter.setPen(self._default_line_indicator_color)
+                # Draw a small horizontal line in the middle of the allocated line height
+                indicator_y = y_offset + self._line_height / 2
+                painter.drawLine(2, int(indicator_y), self.width() - 4, int(indicator_y))
+
             y_offset += self._line_height
             if y_offset > self.height(): # Stop if we've drawn past the bottom
                 break
-        
+
         # Draw the rectangle for the visible area
         if self.editor_scroll_bar: # Only draw if we have scrollbar info
             rect_y = self._visible_rect_fraction.y() * self.height()
@@ -138,4 +149,8 @@ class MinimapView(QWidget):
 
     def clear_content(self):
         self._document_lines = []
+        self.update()
+
+    def update_styles(self):
+        """Forces a repaint, typically called when regex patterns change."""
         self.update()

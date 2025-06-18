@@ -1,8 +1,8 @@
 # FastFileViewer :: ui/editor_view.py
 # Central text display area, line numbers, gutters.
 
-from PySide6.QtWidgets import QPlainTextEdit, QWidget, QHBoxLayout, QAbstractScrollArea
-from PySide6.QtGui import QFont, QPainter, QColor
+from PySide6.QtWidgets import QPlainTextEdit, QWidget, QHBoxLayout, QTextEdit, QAbstractScrollArea # QTextEdit for ExtraSelection
+from PySide6.QtGui import QFont, QPainter, QColor, QTextCursor, QTextCharFormat # Added QTextCursor and QTextCharFormat
 from PySide6.QtCore import Qt, QRect, QSize
 
 from .components.line_number_area import LineNumberArea
@@ -17,9 +17,10 @@ class EditorView(QWidget): # Changed from QPlainTextEdit
     Displays the file content with line numbers and other gutter information.
     This widget now contains a QPlainTextEdit and a LineNumberArea.
     """
-    def __init__(self, parent=None):
+    def __init__(self, main_window, parent=None): # Pass main_window for regex_engine access
         super().__init__(parent)
-
+        self.main_window = main_window # Store reference to main_window
+        
         self.text_edit = QPlainTextEdit(self)
         self.text_edit.setReadOnly(True)
         self.text_edit.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap) # Important for minimap sync
@@ -80,6 +81,7 @@ class EditorView(QWidget): # Changed from QPlainTextEdit
         self.text_edit.clear()
         self.text_edit.setPlainText("\n".join(lines_list))
         # After setting content, update minimap's visible area
+        self.update_highlighting() # Update highlighting when new content is set
         self._on_scroll_changed()
 
     def set_view_font(self, font_family: str, font_size: int):
@@ -91,6 +93,7 @@ class EditorView(QWidget): # Changed from QPlainTextEdit
         self.line_number_area.update()       # Repaint gutter
         if self.minimap_view_ref: # Update minimap if font changes
             self.minimap_view_ref.setFont(font) # Or a scaled version
+            self.update_highlighting() # Font change can affect layout, re-highlight
             self._on_scroll_changed()
 
     def clear(self):
@@ -111,4 +114,73 @@ class EditorView(QWidget): # Changed from QPlainTextEdit
         target_value = int(scrollbar.minimum() + scroll_range * percentage)
         scrollbar.setValue(target_value)
 
+    def update_highlighting(self):
+        """Applies regex highlighting based on patterns from RegexEngine."""
+        if not hasattr(self.main_window, 'regex_engine'):
+            return
+
+        # 1. Clear previous highlighting
+        # Clear character format highlighting (text color)
+        cursor = self.text_edit.textCursor()
+        cursor.select(QTextCursor.SelectionType.Document)
+        default_char_format = QTextCharFormat() # Create a default format
+        # If you have a theme-aware default text color, set it here.
+        # For now, it will revert to the QPlainTextEdit's default.
+        cursor.setCharFormat(default_char_format)
+        cursor.clearSelection()
+
+        # Clear extra selections (line background)
+        self.text_edit.setExtraSelections([])
+
+        active_patterns = self.main_window.regex_engine.get_active_patterns()
+        if not active_patterns:
+            #print("[Highlighting] No active patterns.") # DEBUG
+            return
+
+        extra_selections = []
+        doc = self.text_edit.document()
+        # To ensure "맨 위에 검색결과로 배경색을 표시해줘" (first active pattern in list takes precedence for line background)
+        # we keep track of lines that already have a background applied by a higher-priority pattern.
+        lines_with_background_applied = set()
+
+        # print(f"[Highlighting] Active patterns: {[(p.pattern, fg.name(), bg.name()) for p, fg, bg in active_patterns]}") # DEBUG
+        # Iterate through patterns (order in active_patterns matters for background precedence)
+        for compiled_regex, fg_color, bg_color in active_patterns:
+            block = doc.firstBlock()
+            while block.isValid():
+                line_number = block.blockNumber()
+                line_text = block.text()
+
+                # Apply line background color (if not already applied by a higher priority pattern)
+                if line_number not in lines_with_background_applied:
+                    # DEBUG: Check for matches for background
+                    match_found_for_bg = False
+                    for bg_match in compiled_regex.finditer(line_text): # Check if pattern matches anywhere in line
+                        selection = QTextEdit.ExtraSelection()
+                        selection.format.setBackground(bg_color)
+                        selection.format.setProperty(QTextCharFormat.Property.FullWidthSelection, True)
+                        
+                        line_cursor = QTextCursor(block)
+                        selection.cursor = line_cursor
+                        extra_selections.append(selection)
+                        lines_with_background_applied.add(line_number)
+                        match_found_for_bg = True
+                        #print(f"[Highlighting] BG: Line {line_number + 1} matched by '{compiled_regex.pattern}' (Color: {bg_color.name()}). Match: '{bg_match.group(0)}'") # DEBUG
+                        break # Apply background once per line per high-priority pattern
+                    # if not match_found_for_bg and line_number < 10: # DEBUG: Check first few non-matching lines for this pattern
+                    #     print(f"[Highlighting] BG: Line {line_number + 1} NO match by '{compiled_regex.pattern}' for background.")
+
+                # Apply foreground color to specific matches
+                for match in compiled_regex.finditer(line_text):
+                    start, end = match.span()
+                    match_cursor = QTextCursor(block)
+                    match_cursor.setPosition(block.position() + start)
+                    match_cursor.setPosition(block.position() + end, QTextCursor.MoveMode.KeepAnchor)
+                    
+                    char_format = QTextCharFormat()
+                    char_format.setForeground(fg_color)
+                    # print(f"[Highlighting] FG: Line {line_number + 1} matched by '{compiled_regex.pattern}' (Color: {fg_color.name()}). Text: '{match.group(0)}'") # DEBUG
+                    match_cursor.mergeCharFormat(char_format)
+                block = block.next()
+        self.text_edit.setExtraSelections(extra_selections)
     # Add other QPlainTextEdit methods you need to expose as needed

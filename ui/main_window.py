@@ -6,14 +6,15 @@ from PySide6.QtWidgets import (QMainWindow, QHBoxLayout, QWidget, QFileDialog, Q
                                QMenuBar, QStatusBar, QSplitter)
 from PySide6.QtGui import QAction, QKeySequence, QDragEnterEvent, QDropEvent
 from PySide6.QtCore import Qt
-# Placeholder for other UI components that will be integrated
+
 from .editor_view import EditorView
 from .minimap_view import MinimapView
-# from .regex_dialog import RegexDialog
+from .regex_dialog import RegexDialog
 from .preferences_dialog import PreferencesDialog
 
 from core.file_handler import FileHandler
 from core.settings_manager import SettingsManager
+from core.regex_engine import RegexEngine
 
 class MainWindow(QMainWindow):
     """
@@ -27,6 +28,7 @@ class MainWindow(QMainWindow):
         # Core components
         self.settings_manager = SettingsManager(self)
         self.file_handler = FileHandler(self)
+        self.regex_engine = RegexEngine(self.settings_manager, self) # Pass SettingsManager
         self.current_filepath = None # To store the path of the file being loaded/opened
 
         # Central Widget and Layout
@@ -39,10 +41,10 @@ class MainWindow(QMainWindow):
         # Splitter to allow resizing between editor and minimap
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
-        self.editor_view = EditorView(self)
+        self.editor_view = EditorView(self, self) # Pass self (MainWindow) to EditorView
         splitter.addWidget(self.editor_view)
 
-        self.minimap_view = MinimapView(self)
+        self.minimap_view = MinimapView(self.regex_engine, self) # Pass regex_engine
         splitter.addWidget(self.minimap_view)
         
         # Set initial sizes for splitter (optional)
@@ -56,6 +58,8 @@ class MainWindow(QMainWindow):
         self.file_handler.file_content_loaded.connect(self.minimap_view.set_document_content)
         self.file_handler.file_content_loaded.connect(self.editor_view.set_text_content)
         self.file_handler.loading_finished.connect(self._on_file_loading_finished)
+        self.regex_engine.patterns_changed.connect(self.minimap_view.update_styles) # Connect to minimap
+        self.regex_engine.patterns_changed.connect(self.editor_view.update_highlighting)
         self._update_recent_files_menu() # Populate recent files menu at startup
         self.setAcceptDrops(True) # Enable drag and drop for the main window
         self.apply_editor_font_settings() # Apply initial font settings
@@ -108,6 +112,13 @@ class MainWindow(QMainWindow):
         preferences_action.triggered.connect(self.open_preferences_dialog)
         edit_menu.addAction(preferences_action)
 
+        # Tools Menu (for Regex Dialog)
+        tools_menu = menu_bar.addMenu("&Tools")
+        manage_regex_action = QAction("&Manage Regex Patterns...", self)
+        manage_regex_action.setStatusTip("Add, edit, or remove regex patterns for highlighting")
+        manage_regex_action.triggered.connect(self.open_regex_dialog)
+        tools_menu.addAction(manage_regex_action)
+
 
     def _create_status_bar(self):
         """Creates the status bar."""
@@ -127,6 +138,15 @@ class MainWindow(QMainWindow):
         if dialog.exec() == QDialog.DialogCode.Accepted:
             self.apply_editor_font_settings()
             self.status_bar.showMessage("Preferences updated.", 3000)
+
+    def open_regex_dialog(self):
+        """Opens the regex management dialog."""
+        # Pass the regex_engine instance to the dialog
+        dialog = RegexDialog(self.regex_engine, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            # Regex patterns were updated in regex_engine by the dialog's accept()
+            self.status_bar.showMessage("Regex patterns updated.", 3000)
+            # self.editor_view.update_highlighting() # No longer needed due to signal/slot
 
     def apply_editor_font_settings(self):
         """Applies font settings from SettingsManager to EditorView."""
