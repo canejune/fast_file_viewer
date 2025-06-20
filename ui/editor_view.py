@@ -1,7 +1,7 @@
 # FastFileViewer :: ui/editor_view.py
 # Central text display area, line numbers, gutters.
 
-from PySide6.QtWidgets import QPlainTextEdit, QWidget, QHBoxLayout, QTextEdit, QAbstractScrollArea # QTextEdit for ExtraSelection
+from PySide6.QtWidgets import QPlainTextEdit, QWidget, QHBoxLayout, QTextEdit, QAbstractScrollArea, QSizePolicy # QTextEdit for ExtraSelection
 from PySide6.QtGui import QFont, QPainter, QColor, QTextCursor, QTextCharFormat # Added QTextCursor and QTextCharFormat
 from PySide6.QtCore import Qt, QRect, QSize
 
@@ -17,10 +17,12 @@ class EditorView(QWidget): # Changed from QPlainTextEdit
     Displays the file content with line numbers and other gutter information.
     This widget now contains a QPlainTextEdit and a LineNumberArea.
     """
-    def __init__(self, main_window, parent=None): # Pass main_window for regex_engine access
+    def __init__(self, main_window, bookmark_manager, parent=None): # Pass main_window and bookmark_manager
         super().__init__(parent)
         self.main_window = main_window # Store reference to main_window
-        
+        self.bookmark_manager = bookmark_manager
+
+
         self.text_edit = QPlainTextEdit(self)
         self.text_edit.setReadOnly(True)
         self.text_edit.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap) # Important for minimap sync
@@ -28,7 +30,7 @@ class EditorView(QWidget): # Changed from QPlainTextEdit
 
         self.line_number_area = LineNumberArea(self.text_edit)
 
-        layout = QHBoxLayout(self)
+        layout = QHBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0) # Remove margins
         layout.setSpacing(0) # Remove spacing between widgets
         layout.addWidget(self.line_number_area)
@@ -40,6 +42,10 @@ class EditorView(QWidget): # Changed from QPlainTextEdit
         self.text_edit.updateRequest.connect(self.update_line_number_area)
         self.text_edit.verticalScrollBar().valueChanged.connect(self._on_scroll_changed)
         # self.text_edit.cursorPositionChanged.connect(self.line_number_area.update) # For current line highlight in gutter
+
+        # Pass bookmark_manager to LineNumberArea and connect signals
+        self.line_number_area.set_bookmark_manager(self.bookmark_manager)
+        self.bookmark_manager.bookmarks_changed.connect(self.line_number_area.update)
 
         self.update_line_number_area_width() # Initial width calculation
         self.minimap_view_ref = None # Reference to the minimap
@@ -113,6 +119,16 @@ class EditorView(QWidget): # Changed from QPlainTextEdit
         scroll_range = scrollbar.maximum() - scrollbar.minimum()
         target_value = int(scrollbar.minimum() + scroll_range * percentage)
         scrollbar.setValue(target_value)
+
+    def scroll_to_line(self, line_number_0_indexed: int):
+        """Scrolls the editor view to make the specified line number visible."""
+        doc = self.text_edit.document()
+        if 0 <= line_number_0_indexed < doc.blockCount():
+            block = doc.findBlockByNumber(line_number_0_indexed)
+            if block.isValid():
+                cursor = QTextCursor(block)
+                self.text_edit.setTextCursor(cursor) # Moves cursor and scrolls
+                self.text_edit.centerCursor() # Tries to center the line
 
     def update_highlighting(self):
         """Applies regex highlighting based on patterns from RegexEngine."""

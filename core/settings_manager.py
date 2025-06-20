@@ -99,5 +99,29 @@ class SettingsManager(QObject):
             })
         return patterns
 
-    # def load_bookmarks(self):
-    #     return set(self.get_setting("bookmarks", []))
+    def save_bookmarks(self, filepath: str, bookmarks_set: set):
+        """Saves the set of bookmarked line numbers for a specific file."""
+        if not filepath: # Do not save if filepath is not valid
+            return
+        all_bookmarks = self.get_setting("file_bookmarks", {})
+        all_bookmarks[filepath] = list(bookmarks_set) # QSettings prefers lists
+        self.set_setting("file_bookmarks", all_bookmarks)
+
+    def load_bookmarks(self, filepath: str) -> set:
+        """Loads the set of bookmarked line numbers for a specific file."""
+        if not filepath:
+            return set()
+        all_bookmarks = self.get_setting("file_bookmarks", {})
+        return set(all_bookmarks.get(filepath, []))
+
+    def clear_all_file_bookmarks(self): # Optional: if you want a way to clear all bookmarks for all files
+        self.set_setting("file_bookmarks", {})
+
+    def get_bookmark_color(self) -> QColor:
+        """Gets the global bookmark color."""
+        color_name = self.get_setting("bookmark_color", QColor(Qt.GlobalColor.blue).lighter(120).name())
+        return QColor(color_name)
+
+    def set_bookmark_color(self, color: QColor):
+        """Sets the global bookmark color."""
+        self.set_setting("bookmark_color", color.name())

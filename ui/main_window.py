@@ -11,10 +11,12 @@ from .editor_view import EditorView
 from .minimap_view import MinimapView
 from .regex_dialog import RegexDialog
 from .preferences_dialog import PreferencesDialog
+from .search_results_window import SearchResultsWindow # Import the new window
 
 from core.file_handler import FileHandler
 from core.settings_manager import SettingsManager
 from core.regex_engine import RegexEngine
+from core.bookmark_manager import BookmarkManager
 
 class MainWindow(QMainWindow):
     """
@@ -29,7 +31,9 @@ class MainWindow(QMainWindow):
         self.settings_manager = SettingsManager(self)
         self.file_handler = FileHandler(self)
         self.regex_engine = RegexEngine(self.settings_manager, self) # Pass SettingsManager
+        self.bookmark_manager = BookmarkManager(self.settings_manager, self)
         self.current_filepath = None # To store the path of the file being loaded/opened
+        self.search_results_window = None # Placeholder for the results window instance
 
         # Central Widget and Layout
         central_widget = QWidget()
@@ -41,10 +45,10 @@ class MainWindow(QMainWindow):
         # Splitter to allow resizing between editor and minimap
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
-        self.editor_view = EditorView(self, self) # Pass self (MainWindow) to EditorView
+        self.editor_view = EditorView(self, self.bookmark_manager, self) # Pass self (MainWindow) and bookmark_manager
         splitter.addWidget(self.editor_view)
 
-        self.minimap_view = MinimapView(self.regex_engine, self) # Pass regex_engine
+        self.minimap_view = MinimapView(self.regex_engine, self.bookmark_manager, self) # Pass regex_engine and bookmark_manager
         splitter.addWidget(self.minimap_view)
         
         # Set initial sizes for splitter (optional)
@@ -60,6 +64,8 @@ class MainWindow(QMainWindow):
         self.file_handler.loading_finished.connect(self._on_file_loading_finished)
         self.regex_engine.patterns_changed.connect(self.minimap_view.update_styles) # Connect to minimap
         self.regex_engine.patterns_changed.connect(self.editor_view.update_highlighting)
+        self.bookmark_manager.bookmark_color_changed.connect(self.minimap_view.update_styles) # Update minimap on bookmark color change
+        self.bookmark_manager.bookmarks_changed.connect(self.minimap_view.update_styles) # Update minimap on bookmark change
         self._update_recent_files_menu() # Populate recent files menu at startup
         self.setAcceptDrops(True) # Enable drag and drop for the main window
         self.apply_editor_font_settings() # Apply initial font settings
@@ -111,6 +117,11 @@ class MainWindow(QMainWindow):
         # You can add a shortcut if desired, e.g., QKeySequence.fromString("Ctrl+,")
         preferences_action.triggered.connect(self.open_preferences_dialog)
         edit_menu.addAction(preferences_action)
+        
+        clear_bookmarks_action = QAction("Clear Bookmarks for Current File", self)
+        clear_bookmarks_action.setStatusTip("Remove all bookmarks from the currently open file")
+        clear_bookmarks_action.triggered.connect(self._clear_current_file_bookmarks)
+        edit_menu.addAction(clear_bookmarks_action)
 
         # Tools Menu (for Regex Dialog)
         tools_menu = menu_bar.addMenu("&Tools")
@@ -118,6 +129,12 @@ class MainWindow(QMainWindow):
         manage_regex_action.setStatusTip("Add, edit, or remove regex patterns for highlighting")
         manage_regex_action.triggered.connect(self.open_regex_dialog)
         tools_menu.addAction(manage_regex_action)
+
+        # View Menu
+        view_menu = menu_bar.addMenu("&View")
+        show_matches_action = QAction("Show Matched & Bookmarked Lines", self)
+        show_matches_action.triggered.connect(self.show_matched_bookmarked_lines_window)
+        view_menu.addAction(show_matches_action)
 
 
     def _create_status_bar(self):
@@ -206,6 +223,14 @@ class MainWindow(QMainWindow):
         self._update_recent_files_menu()
         self.status_bar.showMessage("Recent files list cleared.", 3000)
 
+    def _clear_current_file_bookmarks(self):
+        """Clears all bookmarks for the current file."""
+        if self.current_filepath:
+            self.bookmark_manager.clear_bookmarks_for_current_file()
+            self.status_bar.showMessage(f"Bookmarks cleared for {self.current_filepath}", 3000)
+        else:
+            self.status_bar.showMessage("No file open to clear bookmarks from.", 3000)
+
     def _on_file_loading_finished(self):
         """Updates the status bar when file loading is complete."""
         if self.current_filepath:
@@ -217,6 +242,7 @@ class MainWindow(QMainWindow):
     def _load_file_action(self, filepath: str):
         """Helper method to open and load a file."""
         self.editor_view.clear()
+        self.bookmark_manager.set_current_file(filepath) # Set current file for bookmarks
         self.current_filepath = filepath
         self.status_bar.showMessage(f"Opening {filepath}...")
         self.file_handler.load_file(filepath)
@@ -227,3 +253,67 @@ class MainWindow(QMainWindow):
         """Loads the initial file passed via command line argument."""
         # This method ensures the file is loaded after the window is fully initialized.
         self._load_file_action(filepath)
+
+    def show_matched_bookmarked_lines_window(self):
+        """Gathers matched and bookmarked lines and displays them in a separate window."""
+        if not self.current_filepath or not self.file_handler.lines:
+            self.status_bar.showMessage("No file loaded or file is empty.", 3000)
+            return
+
+        # Using a dictionary to collect results per line, allowing easy merging
+        # Key: line_number_0_indexed
+        # Value: {"text": str, "types": set, "fg_color": QColor, "bg_color": QColor}
+        line_results_map = {}
+        all_lines = self.file_handler.lines
+
+        # Collect bookmarked lines
+        bookmarked_lines_indices = self.bookmark_manager.get_all_bookmarks()
+        bookmark_color = self.bookmark_manager.get_bookmark_color()
+        for line_idx in bookmarked_lines_indices:
+            if 0 <= line_idx < len(all_lines):
+                if line_idx not in line_results_map:
+                    line_results_map[line_idx] = {
+                        "text": all_lines[line_idx],
+                        "types": set(),
+                        "fg_color": None, # Default text color for bookmark-only lines
+                        "bg_color": bookmark_color # Bookmark color as background
+                    }
+                line_results_map[line_idx]["types"].add("Bookmark")
+                # If only bookmarked, ensure bg_color is bookmark_color
+                if not line_results_map[line_idx].get("is_regex_match"):
+                     line_results_map[line_idx]["bg_color"] = bookmark_color
+
+        # Collect regex matches
+        active_patterns = self.regex_engine.get_active_patterns()
+        if active_patterns:
+            for line_idx, line_text in enumerate(all_lines):
+                for compiled_regex, fg_color, bg_color in active_patterns:
+                    if compiled_regex.search(line_text):
+                        if line_idx not in line_results_map:
+                            line_results_map[line_idx] = {
+                                "text": line_text,
+                                "types": set(),
+                                "fg_color": fg_color,
+                                "bg_color": bg_color
+                            }
+                        else: # Line already in map (e.g., from bookmark), update colors if regex takes precedence
+                            line_results_map[line_idx]["fg_color"] = fg_color
+                            line_results_map[line_idx]["bg_color"] = bg_color # Regex bg overrides bookmark bg for display
+                        
+                        line_results_map[line_idx]["types"].add(f"Regex: {compiled_regex.pattern}")
+                        line_results_map[line_idx]["is_regex_match"] = True # Mark that regex matched for color precedence
+                        break # Add line once per regex match for this purpose
+        
+        # Convert map to sorted list for display
+        final_results_for_display = []
+        for line_idx in sorted(line_results_map.keys()):
+            data = line_results_map[line_idx]
+            # Join types like "Bookmark, Regex: error"
+            type_str = ", ".join(sorted(list(data["types"])))
+            final_results_for_display.append((line_idx, data["text"], type_str, data["fg_color"], data["bg_color"]))
+
+        if not self.search_results_window:
+            self.search_results_window = SearchResultsWindow(self) # Pass MainWindow as parent
+        self.search_results_window.display_results(final_results_for_display)
+        self.search_results_window.show()
+        self.search_results_window.activateWindow() # Bring to front

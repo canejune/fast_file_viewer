@@ -22,23 +22,34 @@ The entire development process adheres to SOLID principles, and all code comment
 - **Line Ending Handling**: Consistently handles line break characters from various operating systems (Unix, DOS/Windows) to prevent blank line issues.
 
 ### 3. Regex Search and Highlighting
-- **Multiple Regex Support**: Apply multiple regular expression patterns simultaneously.
-- **Custom Colors**: Users can specify custom highlight colors (foreground and background) for each regex pattern.
-- **Pattern Management Window**: Manage a list of regular expressions in a separate window, allowing activation/deactivation of each pattern.
+- **Multiple Regex Support**: Apply and manage multiple custom regular expression patterns.
+- **Customizable Styles**: Assign unique foreground (text) and background colors to each regex pattern.
+- **Pattern Management**: Add, edit, remove, and activate/deactivate patterns via a dedicated dialog.
 - **Minimap Integration**: Lines matching active regex patterns are also indicated with their respective background colors in the minimap.
 - **Pattern Precedence**: If multiple active patterns match the same line, the background color of the pattern listed higher in the management dialog will be applied.
 - **Persistent Patterns**: Defined regex patterns and their styles are saved and will be available on subsequent application launches.
 
-### 4. Document Overview (Minimap)
+### 4. Bookmarking
+- **Toggle Bookmarks**: Click on the line number gutter to add or remove a bookmark for that line.
+- **File-Specific Bookmarks**: Bookmarks are saved and loaded per file, so each file retains its own set of bookmarks.
+- **Customizable Bookmark Color**: Set a global color for bookmark indicators via the Preferences dialog.
+- **Visual Indicators**:
+    - Bookmarked lines are highlighted in the line number gutter with the chosen bookmark color.
+    - Bookmarked lines are also indicated in the minimap with the same color (if not overridden by a regex match background).
+- **Clear Bookmarks**: An option in the "Edit" menu allows clearing all bookmarks for the currently open file.
+
+### 5. Document Overview (Minimap)
 - **Full Document Visualization**: Displays a thumbnail (Minimap) of the entire document on the right side of the screen.
 - **Navigation**: Instantly navigate to specific parts of the document by clicking or dragging on the Minimap.
 - **Accurate Visible Area Indicator**: The currently visible area in the editor is accurately indicated on the Minimap, even for short files.
 - **Information Visualization**: Regex search results (line backgrounds) are displayed in the overview with their specified colors.
 
 ### 5. Persistent Settings
-- Remembers recent files.
-- Saves editor font preferences.
-- Saves custom regex patterns and their styles.
+- **Recent Files**: Remembers and provides quick access to recently opened files.
+- **Editor Font**: Saves user-selected font family and size for the editor.
+- **Regex Patterns**: Persists custom regex patterns, their styles, and active states.
+- **Bookmarks**: Saves bookmarks on a per-file basis.
+- **Bookmark Color**: Saves the globally chosen bookmark indicator color.
 
 ## Technical Architecture
 - **Language and Framework**: Python 3, PySide6 (for UI and multi-threading support)

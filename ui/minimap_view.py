@@ -19,10 +19,11 @@ class MinimapView(QWidget):
     # Signal to indicate user wants to scroll to a certain percentage of the document
     scroll_request = Signal(float) # float is percentage from 0.0 to 1.0
 
-    def __init__(self, regex_engine, parent=None):
+    def __init__(self, regex_engine, bookmark_manager, parent=None):
         super().__init__(parent)
         self.setMinimumWidth(80) # Adjust as needed
         self.setMaximumWidth(200)
+        self.bookmark_manager = bookmark_manager
         self._document_lines = [] # Stores MinimapLine objects
         self._visible_rect_fraction = QRectF(0, 0, 1, 0.1) # x, y, w, h as fractions of minimap
         self._line_height = 2 # Height of each line in the minimap in pixels
@@ -30,10 +31,9 @@ class MinimapView(QWidget):
         self._minimap_background_color = QColor(Qt.GlobalColor.lightGray).lighter(110)
         self._visible_area_color = QColor(Qt.GlobalColor.darkGray).lighter(50)
         self._visible_area_color.setAlpha(100) # Semi-transparent
+        # self._bookmark_minimap_color = QColor(Qt.GlobalColor.blue).lighter(120) # Will get from bookmark_manager
 
         self.editor_scroll_bar = None # To get scroll range and position
-
-        # self.bookmark_manager = None
         self.regex_engine = regex_engine
         self.setFont(QFont("Monospace", 1)) # Tiny font for minimap representation
 
@@ -88,7 +88,7 @@ class MinimapView(QWidget):
         painter = QPainter(self)
         painter.fillRect(self.rect(), self._minimap_background_color)
 
-        if not self._document_lines or not self.regex_engine:
+        if not self._document_lines:
             painter.end()
             return
 
@@ -100,19 +100,29 @@ class MinimapView(QWidget):
             line_text = m_line.text
             line_bg_color_to_draw = None
 
-            if active_patterns:
+            is_bookmarked = self.bookmark_manager and self.bookmark_manager.is_bookmarked(i)
+
+            if active_patterns and self.regex_engine:
                 for compiled_regex, fg_c, bg_c in active_patterns:
                     if compiled_regex.search(line_text):
                         line_bg_color_to_draw = bg_c
-                        break # First active pattern match determines background
+                        break # First active regex pattern match determines background
+            
 
             if line_bg_color_to_draw:
                 painter.fillRect(QRectF(0, y_offset, self.width(), self._line_height), line_bg_color_to_draw)
+            elif is_bookmarked and self.bookmark_manager: # If no regex match but bookmarked, draw bookmark color
+                current_bookmark_color = self.bookmark_manager.get_bookmark_color()
+                painter.fillRect(QRectF(0, y_offset, self.width(), self._line_height), current_bookmark_color)
             elif line_text.strip(): # If no regex match, draw default indicator for non-empty lines
                 painter.setPen(self._default_line_indicator_color)
                 # Draw a small horizontal line in the middle of the allocated line height
                 indicator_y = y_offset + self._line_height / 2
                 painter.drawLine(2, int(indicator_y), self.width() - 4, int(indicator_y))
+
+            # Could also draw a specific mark for bookmarks on top of regex colors if needed
+            # if is_bookmarked:
+            #     painter.fillRect(QRectF(0, y_offset, 3, self._line_height), self._bookmark_minimap_color.darker(120))
 
             y_offset += self._line_height
             if y_offset > self.height(): # Stop if we've drawn past the bottom
@@ -153,4 +163,6 @@ class MinimapView(QWidget):
 
     def update_styles(self):
         """Forces a repaint, typically called when regex patterns change."""
+        # This is also connected to bookmark_manager.bookmarks_changed
+        # and bookmark_manager.bookmark_color_changed (if implemented in BM and connected in MainWindow)
         self.update()
